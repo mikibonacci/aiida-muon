@@ -42,8 +42,7 @@ except Exception:
 
 PwBaseWorkChain = WorkflowFactory('quantumespresso.pw.base')
 
-from aiida_quantumespresso.workflows.pw.relax import PwRelaxWorkChain as LegacyPwRelaxWorkChain
-from aiida_qe_restart.relax import PoweredPwRelaxWorkChain as PwRelaxWorkChain
+from aiida_quantumespresso.workflows.pw.relax import PwRelaxWorkChain
 
 IsolatedImpurityWorkChain = WorkflowFactory('impuritysupercellconv')
 
@@ -410,7 +409,7 @@ class FindMuonWorkChain(ProtocolMixin, WorkChain):
         supercells_list: list = [],
         pre_clustering: bool = False,
         noncollinear: bool = False,
-        monitor_entry_point_list: list = [],
+        monitor_entry_point_list: list = ['quantumespresso.accuracy_stuck'],
         activate_monitors: bool = True,
         additional_pythonjob_inputs: dict = {},
         **kwargs,
@@ -472,12 +471,8 @@ class FindMuonWorkChain(ProtocolMixin, WorkChain):
         :param noncollinear: set to ``True`` for non-collinear magnetic calculations;
             disables automatic Gamma-only optimisation. Default ``False``.
         :param monitor_entry_point_list: list of ``aiida-monitor`` entry-point strings to
-            attach to every ``PwBaseWorkChain`` relaxation. The
-            ``'aiida_monitor.default_monitor'`` entry point is appended automatically when
-            ``aiida-monitor`` is installed and ``activate_monitors=True``.
-        :param activate_monitors: enable monitor attachment. When ``True`` (default) and
-            ``aiida-monitor`` is installed, ``aiida_monitor.default_monitor`` is added
-            automatically. Set to ``False`` to disable all monitors.
+            attach to every ``PwBaseWorkChain`` relaxation. 
+        :param activate_monitors: enable monitor attachment.
         :param additional_pythonjob_inputs: extra keyword arguments forwarded to the
             ``PythonJob`` input-preparation helper (e.g. metadata, custom serialisers).
         :return: a process builder instance with all inputs defined ready for launch.
@@ -638,15 +633,6 @@ class FindMuonWorkChain(ProtocolMixin, WorkChain):
         if len(supercells_list)>0:
             builder.supercells_list = orm.List(list=supercells_list)
         
-        try:
-            from aiida_monitor.monitor import monitor
-            from importlib.metadata import entry_points
-            registered = {ep.name for ep in entry_points().get('aiida.calculations.monitors', [])}
-            if 'aiida_monitor.default_monitor' in registered:
-                if 'aiida_monitor.default_monitor' not in monitor_entry_point_list and activate_monitors:
-                    monitor_entry_point_list.append('aiida_monitor.default_monitor')
-        except Exception:
-            pass
         
         # Filter to only entry points that are actually registered
         try:
@@ -1083,7 +1069,7 @@ class FindMuonWorkChain(ProtocolMixin, WorkChain):
             else:
                 self.ctx.n = i_index+self.ctx.offset
                 uuid = workchain.uuid
-                if workchain.process_class in [LegacyPwRelaxWorkChain, PwRelaxWorkChain]:
+                if workchain.process_class in [PwRelaxWorkChain]:
                     energy = workchain.outputs.output_parameters.get_dict()["energy"]
                     rlx_structure = (
                         workchain.outputs.output_structure.get_pymatgen_structure()
